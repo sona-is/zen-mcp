@@ -1019,9 +1019,9 @@ async function handleTool(name, args) {
       // Press and release key
       actions.push({ type: 'keyDown', value: keyValue });
       actions.push({ type: 'keyUp', value: keyValue });
-      // Release modifiers (reverse order)
-      for (const mod of mods.reverse()) {
-        if (modMap[mod]) actions.push({ type: 'keyUp', value: modMap[mod] });
+      // Release modifiers (reverse order, without mutating caller's array)
+      for (let i = mods.length - 1; i >= 0; i--) {
+        if (modMap[mods[i]]) actions.push({ type: 'keyUp', value: modMap[mods[i]] });
       }
 
       await bidi.send('input.performActions', {
@@ -1044,7 +1044,7 @@ function text(str) {
 // ─── MCP Server Setup ───────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'zen-browser', version: '1.2.0' },
+  { name: 'zen-browser', version: '1.2.2' },
   { capabilities: { tools: {} } }
 );
 

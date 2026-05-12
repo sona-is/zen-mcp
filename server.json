@@ -6,12 +6,12 @@
     "url": "https://github.com/sh6drack/zen-mcp",
     "source": "github"
   },
-  "version": "1.2.1",
+  "version": "1.2.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "zen-mcp",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "transport": {
         "type": "stdio"
       },
