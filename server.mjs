@@ -1044,7 +1044,7 @@ function text(str) {
 // ─── MCP Server Setup ───────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'zen-browser', version: '1.2.2' },
+  { name: 'zen-browser', version: '1.2.3' },
   { capabilities: { tools: {} } }
 );
 
