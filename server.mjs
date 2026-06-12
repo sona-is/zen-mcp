@@ -136,6 +136,7 @@ class BiDiClient {
   _intentionalDisconnect = false; // prevents auto-reconnect during shutdown
   _reconnecting = false; // guards against concurrent reconnect attempts
   _connectPromise = null; // deduplicates concurrent connect() calls
+  _reconnectTimer = null; // handle for the pending scheduled-reconnect backoff
 
   /**
    * Connect to Zen Browser's BiDi WebSocket.
@@ -143,7 +144,10 @@ class BiDiClient {
    * "Maximum number of active sessions", ends the stale session and retries.
    */
   async connect() {
-    if (this.ws?.readyState === WebSocket.OPEN && this.sessionId) return;
+    if (this.ws?.readyState === WebSocket.OPEN && this.sessionId) {
+      this._cancelScheduledReconnect();
+      return;
+    }
 
     // Deduplicate concurrent connect() calls
     if (this._connectPromise) return this._connectPromise;
@@ -151,6 +155,10 @@ class BiDiClient {
     this._connectPromise = this._doConnect();
     try {
       await this._connectPromise;
+      // Connected: drop any pending background backoff so the scheduled
+      // reconnect and a manual connect()/ensureConnected() don't run as
+      // rival loops.
+      this._cancelScheduledReconnect();
     } finally {
       this._connectPromise = null;
     }
@@ -331,6 +339,9 @@ class BiDiClient {
   /** Schedule a reconnect attempt with exponential backoff */
   _scheduleReconnect(attempt = 1) {
     if (this._reconnecting || this._intentionalDisconnect) return;
+    // Already healthy (e.g. ensureConnected reconnected us first) — don't start
+    // a rival backoff loop.
+    if (this.ws?.readyState === WebSocket.OPEN && this.sessionId) return;
     if (attempt > MAX_RECONNECT_ATTEMPTS) {
       log(`Reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts. Use a tool to retry.`);
       return;
@@ -340,7 +351,8 @@ class BiDiClient {
     const delay = RECONNECT_BASE_DELAY * Math.pow(2, attempt - 1);
     log(`Reconnecting in ${delay}ms (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS})...`);
 
-    setTimeout(async () => {
+    this._reconnectTimer = setTimeout(async () => {
+      this._reconnectTimer = null;
       try {
         await this.connect();
         log('Reconnected successfully');
@@ -351,6 +363,15 @@ class BiDiClient {
         this._scheduleReconnect(attempt + 1);
       }
     }, delay);
+  }
+
+  /** Cancel a pending scheduled reconnect (e.g. once we're connected again). */
+  _cancelScheduledReconnect() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+    this._reconnecting = false;
   }
 
   send(method, params = {}, timeout = 30000) {
@@ -475,6 +496,7 @@ class BiDiClient {
 
   async disconnect() {
     this._intentionalDisconnect = true;
+    this._cancelScheduledReconnect();
     await this.endSession();
     if (this.ws) {
       try { this.ws.close(); } catch {}
