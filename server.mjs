@@ -288,6 +288,14 @@ class BiDiClient {
     });
 
     ws.on('close', (code, reason) => {
+      // Ignore close events from a socket we've already replaced; otherwise a
+      // stale socket's delayed close would clobber a freshly reconnected
+      // session — nulling the live ws/sessionId and rejecting its pending calls.
+      if (this.ws !== ws) {
+        log(`Ignoring close from a stale WebSocket (code: ${code})`);
+        return;
+      }
+
       log(`WebSocket closed (code: ${code}, reason: ${reason || 'none'})`);
       this.ws = null;
       this.sessionId = null;
