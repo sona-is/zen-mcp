@@ -189,11 +189,33 @@ your MCP client/LLM.
 
 ## Config
 
+### Server (`server.mjs`)
+
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `ZEN_DEBUG_PORT` | `9222` | Zen's remote debugging port |
+| `ZEN_DEBUG_PORT` | `9222` | Zen's remote debugging port to connect to |
 | `ZEN_BLOCK_PRIVATE_HOSTS` | `off` | When set (`1`/`true`), block navigation to loopback/private/link-local/intranet hosts (e.g. `localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `*.local`). Leave off to automate local dev servers. |
 | `ZEN_REDACT_URLS` | `off` | When set (`1`/`true`), strip query strings and fragments from URLs returned to the LLM (which often carry OAuth codes, reset tokens, signed-URL params). Leave off if the agent needs full URLs. |
+
+### Launcher (`launch-zen.sh`)
+
+The launcher starts Zen on an isolated throwaway profile **alongside** your daily
+browser — it never kills any running Zen, reuses an instance already on the port
+instead of launching a duplicate, and reports a failed start (e.g. a profile lock).
+
+| Env Variable | Default | Description |
+|-------------|---------|-------------|
+| `ZEN_DEBUG_PORT` | `9222` | Remote debugging port to launch on |
+| `ZEN_PROFILE` | `/tmp/zen-mcp` | Throwaway profile directory (kept free of personal logins) |
+| `ZEN_BIN` | system Zen | Explicit Zen executable to launch; overrides the `ZEN_SRC_APP`/`ZEN_APP_*` options below |
+| `ZEN_SRC_APP` | `/Applications/Zen.app` | Source Zen.app to launch (and to copy from for `ZEN_APP_NAME`) |
+| `ZEN_APP_NAME` | _(unset)_ | If set (e.g. `Zen MCP`), launch a renamed **copy** so it appears under that name in the macOS app switcher / Dock. Copies by filename only — `Info.plist` and signature untouched — and rebuilds only when the source Zen version changes |
+| `ZEN_APP_DIR` | `~/Applications` | Where the `ZEN_APP_NAME` copy is kept |
+
+> The app-switcher name follows the bundle **filename** (Zen ships no
+> `CFBundleDisplayName`); the menu-bar name and icon stay Zen's. Don't edit the
+> copy's `Info.plist` or icon — those are sealed by the code signature, and
+> changing them makes macOS refuse to launch it.
 
 ## Requirements
 
