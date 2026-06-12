@@ -690,7 +690,10 @@ async function handleTool(name, args) {
             if (el.type) info.type = el.type;
             if (el.name) info.name = el.name;
             if (el.id) info.id = el.id;
-            if (el.value !== undefined && el.value !== '') info.value = String(el.value).substring(0, 200);
+            if (el.value !== undefined && el.value !== '') {
+              const sensitive = el.type === 'password' || el.type === 'hidden';
+              info.value = sensitive ? '[redacted]' : String(el.value).substring(0, 200);
+            }
             if (el.placeholder) info.placeholder = el.placeholder;
             if (el.checked !== undefined) info.checked = el.checked;
             if (el.href) info.href = el.href;
@@ -838,9 +841,15 @@ async function handleTool(name, args) {
               }));
             }
 
+            // Redact secret-bearing fields (passwords, hidden tokens) so their
+            // values are never sent to the LLM; presence is still reported.
+            const sensitive = el.type === 'password' || el.type === 'hidden';
+            const rawValue = el.value || '';
+            const safeValue = sensitive ? (rawValue ? '[redacted]' : '') : rawValue.substring(0, 200);
+
             return {
               index: i, tag, type: el.type || '', name: el.name || '',
-              id: el.id || '', selector, value: (el.value || '').substring(0, 200),
+              id: el.id || '', selector, value: safeValue, redacted: sensitive || undefined,
               placeholder: el.placeholder || '', label,
               checked: el.type === 'checkbox' || el.type === 'radio' ? el.checked : undefined,
               required: el.required || false, disabled: el.disabled || false,
