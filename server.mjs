@@ -20,9 +20,52 @@ const WS_URL = `ws://127.0.0.1:${PORT}/session`;
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_BASE_DELAY = 1000; // ms
 
+// Opt-in hardening (default OFF): also block navigation to loopback / private /
+// link-local hosts to limit SSRF-style reach into local dev servers and intranet
+// admin panels. Off by default because automating a localhost dev server is a
+// common, legitimate use of this tool. Enable with ZEN_BLOCK_PRIVATE_HOSTS=1.
+const BLOCK_PRIVATE_HOSTS = /^(1|true|yes|on)$/i.test(process.env.ZEN_BLOCK_PRIVATE_HOSTS || '');
+
 function log(...args) { console.error('[zen-mcp]', ...args); }
 
 // ─── Security helpers ───────────────────────────────────────────────
+
+/**
+ * Best-effort check for loopback / private / link-local / intranet hosts.
+ * Used only when ZEN_BLOCK_PRIVATE_HOSTS is enabled. Covers the common IPv4
+ * ranges, a few IPv6 prefixes, and intranet-style hostname suffixes.
+ */
+function isPrivateHost(hostname) {
+  if (!hostname) return true; // no host -> treat as unsafe
+  let h = hostname.toLowerCase().replace(/\.$/, '');
+  if (h.startsWith('[') && h.endsWith(']')) h = h.slice(1, -1); // strip IPv6 brackets
+
+  // Non-IP intranet / loopback names
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.lan')) return true;
+
+  // IPv4 literal
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]);
+    if (a === 127 || a === 10 || a === 0) return true;       // loopback / private / this-host
+    if (a === 192 && b === 168) return true;                 // private
+    if (a === 172 && b >= 16 && b <= 31) return true;        // private
+    if (a === 169 && b === 254) return true;                 // link-local
+    return false;
+  }
+
+  // IPv6 literal: loopback, unspecified, ULA (fc00::/7), link-local (fe80::/10)
+  if (h === '::1' || h === '::') return true;
+  if (h.startsWith('fc') || h.startsWith('fd')) return true;
+  if (/^fe[89ab]/.test(h)) return true;
+  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+  if (h.includes(':')) {
+    const v4 = h.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+    if (v4) return isPrivateHost(v4[1]);
+  }
+  return false;
+}
 
 /**
  * Restrict navigation to a safe scheme allowlist: http/https, plus about:blank
@@ -42,12 +85,20 @@ function assertNavigableUrl(url) {
     );
   }
   const scheme = parsed.protocol.toLowerCase();
-  if (scheme === 'http:' || scheme === 'https:') return url;
   if (scheme === 'about:' && parsed.href === 'about:blank') return url;
-  throw new Error(
-    `Blocked navigation to a ${scheme} URL. Only http://, https:// and about:blank are allowed; ` +
-    `file:, data:, blob:, javascript:, chrome:, resource: and view-source: are disabled to prevent local-data access.`
-  );
+  if (scheme !== 'http:' && scheme !== 'https:') {
+    throw new Error(
+      `Blocked navigation to a ${scheme} URL. Only http://, https:// and about:blank are allowed; ` +
+      `file:, data:, blob:, javascript:, chrome:, resource: and view-source: are disabled to prevent local-data access.`
+    );
+  }
+  if (BLOCK_PRIVATE_HOSTS && isPrivateHost(parsed.hostname)) {
+    throw new Error(
+      `Blocked navigation to private/loopback host ${JSON.stringify(parsed.hostname)} ` +
+      `(ZEN_BLOCK_PRIVATE_HOSTS is enabled).`
+    );
+  }
+  return url;
 }
 
 // ─── BiDi Client ────────────────────────────────────────────────────

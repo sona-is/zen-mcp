@@ -134,6 +134,7 @@ zen-mcp speaks **WebDriver BiDi** (W3C standard) directly over WebSocket. Form f
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
 | `ZEN_DEBUG_PORT` | `9222` | Zen's remote debugging port |
+| `ZEN_BLOCK_PRIVATE_HOSTS` | `off` | When set (`1`/`true`), block navigation to loopback/private/link-local/intranet hosts (e.g. `localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `*.local`). Leave off to automate local dev servers. |
 
 ## Requirements
 
