@@ -11,9 +11,12 @@
 #   ZEN_BIN         explicit Zen executable to launch    (overrides the options below)
 #   ZEN_SRC_APP     source Zen.app to launch/clone from  (default: /Applications/Zen.app)
 #
-#   App identity (optional): give the throwaway instance its own name in the
-#   macOS app switcher / Dock by launching a renamed COPY of Zen.app:
-#     ZEN_APP_NAME  e.g. "Zen MCP" — enables the renamed copy (default: unset)
+#   App identity: by default the launcher runs a renamed COPY of Zen.app so the
+#   automation instance is visually distinct from your daily Zen in the app
+#   switcher / Dock (this is cosmetic — profile isolation above is what keeps it
+#   safe). Config:
+#     ZEN_APP_NAME  app name / copy filename (default: "Zen MCP";
+#                   set empty — ZEN_APP_NAME= — to launch the system Zen, no copy)
 #     ZEN_APP_DIR   where to keep the copy                (default: ~/Applications)
 #   Only the bundle's FILENAME changes — which, since Zen ships no
 #   CFBundleDisplayName, is what the switcher/Dock display. The Info.plist and
@@ -26,7 +29,7 @@ set -euo pipefail
 PORT="${ZEN_DEBUG_PORT:-9222}"
 PROFILE="${ZEN_PROFILE:-/tmp/zen-mcp}"
 ZEN_SRC_APP="${ZEN_SRC_APP:-/Applications/Zen.app}"
-ZEN_APP_NAME="${ZEN_APP_NAME:-}"
+ZEN_APP_NAME="${ZEN_APP_NAME-Zen MCP}"
 ZEN_APP_DIR="${ZEN_APP_DIR:-$HOME/Applications}"
 
 # Read an Info.plist key from an .app bundle (empty string if absent).

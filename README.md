@@ -27,13 +27,16 @@ This starts Zen with a throwaway profile (`/tmp/zen-mcp`) and
 ```
 
 > `--no-remote` is required if your daily Zen is already running, otherwise the
-> new flags are handed to (and ignored by) the existing instance. Want the
-> throwaway instance to show under its own name in the macOS app switcher? Run
-> the launcher with `ZEN_APP_NAME="Zen MCP"` and it copies Zen.app to that
-> filename (APFS clone, ~0 extra disk; rebuilt only when Zen updates). The
-> Info.plist and signature are left untouched — only the filename changes, which
-> is what the switcher shows — so it stays validly signed and launches normally.
-> (Or point `ZEN_BIN` at your own copy.)
+> new flags are handed to (and ignored by) the existing instance.
+>
+> By default the launcher runs a renamed copy named **Zen MCP**, so the
+> automation browser is visually distinct from your daily Zen in the app switcher
+> / Dock. On first run it copies `Zen.app` to `~/Applications/Zen MCP.app` (APFS
+> clone, ~0 extra disk; rebuilt only when Zen updates) — only the filename
+> changes, so the signature stays valid and it launches normally. (Isolation
+> comes from the throwaway profile above, not this copy; the copy is just for
+> visual clarity.) To skip the copy and launch the system Zen, set
+> `ZEN_APP_NAME=` (empty), or point `ZEN_BIN` at your own binary.
 
 ### 2. Add to Claude Code
 
@@ -209,7 +212,7 @@ instead of launching a duplicate, and reports a failed start (e.g. a profile loc
 | `ZEN_PROFILE` | `/tmp/zen-mcp` | Throwaway profile directory (kept free of personal logins) |
 | `ZEN_BIN` | system Zen | Explicit Zen executable to launch; overrides the `ZEN_SRC_APP`/`ZEN_APP_*` options below |
 | `ZEN_SRC_APP` | `/Applications/Zen.app` | Source Zen.app to launch (and to copy from for `ZEN_APP_NAME`) |
-| `ZEN_APP_NAME` | _(unset)_ | If set (e.g. `Zen MCP`), launch a renamed **copy** so it appears under that name in the macOS app switcher / Dock. Copies by filename only — `Info.plist` and signature untouched — and rebuilds only when the source Zen version changes |
+| `ZEN_APP_NAME` | `Zen MCP` | Launch a renamed **copy** of Zen.app under this name so the automation instance is visually distinct in the app switcher / Dock. Copies by filename only — `Info.plist`/signature untouched — rebuilt only on Zen version change. Set empty (`ZEN_APP_NAME=`) to launch the system Zen with no copy |
 | `ZEN_APP_DIR` | `~/Applications` | Where the `ZEN_APP_NAME` copy is kept |
 
 > The app-switcher name follows the bundle **filename** (Zen ships no
