@@ -26,6 +26,13 @@ const RECONNECT_BASE_DELAY = 1000; // ms
 // common, legitimate use of this tool. Enable with ZEN_BLOCK_PRIVATE_HOSTS=1.
 const BLOCK_PRIVATE_HOSTS = /^(1|true|yes|on)$/i.test(process.env.ZEN_BLOCK_PRIVATE_HOSTS || '');
 
+// Opt-in hardening (default OFF): strip the query string and fragment from URLs
+// returned to the LLM (zen_list_pages, zen_get_page_text, zen_select_page,
+// zen_close_tab). Query strings often carry OAuth codes, password-reset tokens
+// and signed-URL parameters. Off by default because the agent frequently needs
+// full URLs (pagination, SPA state). Enable with ZEN_REDACT_URLS=1.
+const REDACT_URLS = /^(1|true|yes|on)$/i.test(process.env.ZEN_REDACT_URLS || '');
+
 function log(...args) { console.error('[zen-mcp]', ...args); }
 
 // ─── Security helpers ───────────────────────────────────────────────
@@ -99,6 +106,23 @@ function assertNavigableUrl(url) {
     );
   }
   return url;
+}
+
+/**
+ * When ZEN_REDACT_URLS is enabled, strip the query string and fragment from
+ * http/https URLs before returning them to the LLM (these commonly carry OAuth
+ * codes, reset tokens and signed-URL parameters). Non-http(s) values and
+ * unparseable strings are returned unchanged.
+ */
+function sanitizeUrl(u) {
+  if (!REDACT_URLS || !u) return u;
+  try {
+    const p = new URL(u);
+    if (p.protocol !== 'http:' && p.protocol !== 'https:') return u;
+    return p.origin + p.pathname;
+  } catch {
+    return u;
+  }
 }
 
 // ─── BiDi Client ────────────────────────────────────────────────────
@@ -682,7 +706,7 @@ async function handleTool(name, args) {
         pages.push({
           index: i,
           contextId: ctx.context,
-          url: ctx.url || '',
+          url: sanitizeUrl(ctx.url || ''),
           active: ctx.context === bidi.currentContext,
           children: ctx.children?.length || 0,
         });
@@ -696,7 +720,7 @@ async function handleTool(name, args) {
         return text(`Invalid index ${args.index}. ${contexts.length} pages available.`);
       }
       bidi.currentContext = contexts[args.index].context;
-      return text(`Selected page ${args.index}: ${contexts[args.index].url}`);
+      return text(`Selected page ${args.index}: ${sanitizeUrl(contexts[args.index].url)}`);
     }
 
     case 'zen_new_tab': {
@@ -1018,7 +1042,9 @@ async function handleTool(name, args) {
           };
         }
       `, [{ type: 'number', value: maxLen }]);
-      return text(JSON.stringify(extractValue(result), null, 2));
+      const pageInfo = extractValue(result) || {};
+      if (pageInfo.url) pageInfo.url = sanitizeUrl(pageInfo.url);
+      return text(JSON.stringify(pageInfo, null, 2));
     }
 
     case 'zen_close_tab': {
@@ -1036,7 +1062,7 @@ async function handleTool(name, args) {
         const remaining = await bidi.getContexts();
         bidi.currentContext = remaining.length > 0 ? remaining[0].context : null;
       }
-      return text(`Closed tab ${args.index}: ${contexts[args.index].url || 'about:blank'}`);
+      return text(`Closed tab ${args.index}: ${sanitizeUrl(contexts[args.index].url) || 'about:blank'}`);
     }
 
     case 'zen_wait_for': {
