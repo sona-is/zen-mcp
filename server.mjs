@@ -183,6 +183,13 @@ class BiDiClient {
               log('Zombie recovery succeeded — new session created');
               resolve();
             } catch (retryErr) {
+              // Drop the half-open recovery socket so it doesn't leak. Null
+              // this.ws first so the stale-close guard suppresses a redundant
+              // auto-reconnect from the close we're about to trigger.
+              const dead = this.ws;
+              this.ws = null;
+              this.sessionId = null;
+              try { dead?.close(); } catch {}
               reject(new Error(
                 `Zen Browser has a zombie session that cannot be cleared remotely.\n` +
                 `This happens when a previous client disconnected without ending its session.\n\n` +
@@ -192,6 +199,13 @@ class BiDiClient {
               ));
             }
           } else {
+            // Non-zombie failure: close and drop the half-open socket so it
+            // doesn't leak (null first so the stale-close guard suppresses a
+            // redundant auto-reconnect). The caller handles retry/backoff.
+            const dead = this.ws;
+            this.ws = null;
+            this.sessionId = null;
+            try { dead?.close(); } catch {}
             reject(e);
           }
         }
