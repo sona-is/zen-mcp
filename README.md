@@ -6,13 +6,30 @@ No Selenium. No Playwright. No browser drivers. Just WebSocket.
 
 ## Setup (2 minutes)
 
-### 1. Start Zen with remote debugging
+### 1. Start Zen with remote debugging — on a throwaway profile
+
+> **Security:** run zen-mcp against a **dedicated, disposable profile**, not your
+> everyday Zen. The agent can read page content and form values and navigate
+> anywhere the browser is logged in — keep it away from your real cookies and
+> sessions. The launcher below does this and runs **alongside** your normal Zen
+> without killing it.
 
 ```bash
-/Applications/Zen.app/Contents/MacOS/zen --remote-debugging-port 9222
+./launch-zen.sh        # or: npm run launch-zen
 ```
 
-> **Pro tip**: Add `alias zen='open /Applications/Zen.app --args --remote-debugging-port 9222'` to your shell config. Then just run `zen`.
+This starts Zen with a throwaway profile (`/tmp/zen-mcp`) and
+`--remote-debugging-port 9222 --no-remote`. To do it by hand:
+
+```bash
+/Applications/Zen.app/Contents/MacOS/zen \
+  --profile /tmp/zen-mcp --remote-debugging-port 9222 --no-remote
+```
+
+> `--no-remote` is required if your daily Zen is already running, otherwise the
+> new flags are handed to (and ignored by) the existing instance. Set `ZEN_BIN`
+> to a renamed `Zen MCP.app` copy if you want it as its own entry in the app
+> switcher.
 
 ### 2. Add to Claude Code
 
@@ -38,15 +55,29 @@ Add to `~/.claude/mcp_servers.json`:
 
 > If you cloned instead of npm install, use `"command": "node", "args": ["/absolute/path/to/zen-mcp/server.mjs"]`
 
-Add to `~/.claude/settings.json`:
+Add to `~/.claude/settings.json`. **Don't blanket-allow every tool** — auto-allow
+only the read-only ones and let the powerful tools prompt:
 
 ```json
 {
   "permissions": {
-    "allow": ["mcp__zen-browser__*"]
+    "allow": [
+      "mcp__zen-browser__zen_list_pages",
+      "mcp__zen-browser__zen_snapshot",
+      "mcp__zen-browser__zen_screenshot",
+      "mcp__zen-browser__zen_get_page_text",
+      "mcp__zen-browser__zen_get_form_fields"
+    ]
   }
 }
 ```
+
+> Tools left out of `allow` (notably `zen_evaluate` and `zen_navigate`) will
+> prompt for approval each time. Avoid the old `["mcp__zen-browser__*"]` wildcard:
+> it auto-approves everything, including `zen_evaluate`, which runs arbitrary
+> JavaScript in the page. Treat page content as untrusted (prompt injection).
+>
+> **OpenCode** users gate tools in `opencode.json` instead — see [Security](#security).
 
 **That's it.** Start a new Claude Code session and the `zen_*` tools are available.
 
@@ -121,12 +152,35 @@ zen-mcp speaks **WebDriver BiDi** (W3C standard) directly over WebSocket. Form f
 - **Connection retry** (3 attempts with backoff)
 - **Clean shutdown** on SIGINT/SIGTERM to prevent orphaned sessions
 
+## Security
+
+This server hands an LLM agent control of a real browser, so treat it with care:
+
+- **Use a throwaway profile** (the launcher does this). Never point it at your
+  everyday Zen profile with its logged-in sessions.
+- **Web pages are untrusted input.** A malicious page can try to steer the agent
+  (prompt injection) into navigating somewhere sensitive or running JS. Keep
+  approval prompts on for `zen_evaluate` and `zen_navigate`.
+- **Always-on protections:** navigation is restricted to `http`/`https`/`about:blank`
+  (no `file:`/`data:`/`chrome:`/etc.), and `password` and hidden field values are
+  redacted before being returned to the agent.
+- **Optional hardening (env):** `ZEN_BLOCK_PRIVATE_HOSTS=1` blocks loopback/intranet
+  navigation; `ZEN_REDACT_URLS=1` strips query strings (which can carry tokens)
+  from URLs returned to the agent. See [Config](#config).
+- **OpenCode:** gate tools in `opencode.json`, e.g. disable arbitrary JS with
+  `"tools": { "zen-browser_zen_evaluate": false }`, or prompt via a `"permission"`
+  rule.
+
+The server connects only to `127.0.0.1` and sends no telemetry; the only data
+that leaves your machine is whatever the agent reads from pages and returns to
+your MCP client/LLM.
+
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| "Cannot connect to Zen Browser" | Start Zen with `--remote-debugging-port 9222` |
-| "Maximum number of active sessions" | Restart Zen: `killall zen && zen` |
+| "Cannot connect to Zen Browser" | Start Zen with `./launch-zen.sh` (or pass `--remote-debugging-port 9222`) |
+| "Maximum number of active sessions" | Quit the debug Zen instance and re-run `./launch-zen.sh` |
 | Connection keeps dropping | Use `zen_reconnect` to force a fresh connection |
 
 ## Config
