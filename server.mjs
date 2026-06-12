@@ -22,6 +22,34 @@ const RECONNECT_BASE_DELAY = 1000; // ms
 
 function log(...args) { console.error('[zen-mcp]', ...args); }
 
+// ─── Security helpers ───────────────────────────────────────────────
+
+/**
+ * Restrict navigation to a safe scheme allowlist: http/https, plus about:blank
+ * for new blank tabs. Schemes such as file:, data:, blob:, javascript:, chrome:,
+ * resource: and view-source: can read local files or browser internals and are
+ * the primary local-data exfiltration vectors, so they are rejected.
+ *
+ * Throws on a disallowed or unparseable URL; returns the url when allowed.
+ */
+function assertNavigableUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(
+      `Invalid URL: ${JSON.stringify(url)}. Provide an absolute URL such as https://example.com`
+    );
+  }
+  const scheme = parsed.protocol.toLowerCase();
+  if (scheme === 'http:' || scheme === 'https:') return url;
+  if (scheme === 'about:' && parsed.href === 'about:blank') return url;
+  throw new Error(
+    `Blocked navigation to a ${scheme} URL. Only http://, https:// and about:blank are allowed; ` +
+    `file:, data:, blob:, javascript:, chrome:, resource: and view-source: are disabled to prevent local-data access.`
+  );
+}
+
 // ─── BiDi Client ────────────────────────────────────────────────────
 
 class BiDiClient {
@@ -285,6 +313,7 @@ class BiDiClient {
   }
 
   async navigate(url) {
+    assertNavigableUrl(url);
     const ctx = await this.getActiveContext();
     return this.send('browsingContext.navigate', {
       context: ctx,
@@ -322,6 +351,9 @@ class BiDiClient {
   }
 
   async createTab(url = 'about:blank') {
+    // Validate before creating the tab so an invalid/blocked URL doesn't leave
+    // an orphaned blank tab behind.
+    assertNavigableUrl(url);
     await this.ensureConnected();
     const result = await this.send('browsingContext.create', { type: 'tab' });
     const ctx = result.context;
