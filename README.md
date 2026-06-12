@@ -27,9 +27,11 @@ This starts Zen with a throwaway profile (`/tmp/zen-mcp`) and
 ```
 
 > `--no-remote` is required if your daily Zen is already running, otherwise the
-> new flags are handed to (and ignored by) the existing instance. Set `ZEN_BIN`
-> to a renamed `Zen MCP.app` copy if you want it as its own entry in the app
-> switcher.
+> new flags are handed to (and ignored by) the existing instance. Want the
+> throwaway instance to appear as its own app (distinct name + icon) in the macOS
+> app switcher? Run the launcher with `ZEN_APP_NAME="Zen MCP"` and it builds and
+> maintains a renamed clone of Zen.app for you — an APFS clone (~0 extra disk),
+> rebuilt only when Zen updates. (Or point `ZEN_BIN` at your own copy.)
 
 ### 2. Add to Claude Code
 
